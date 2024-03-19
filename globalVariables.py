@@ -1,8 +1,12 @@
 import numpy as np
+import os
 
 #Path
-inputPath = "./AnomalyDetection/data1"
-outputPath = "./AnomalyDetection/output/"
+inputPath = "./data1"       #path of line pack
+outputPath = "./output/"        #path of output
+rootPath = "./data/"        #path of main images(befor simulated)
+if not os.path.exists(outputPath):
+    os.makedirs(outputPath)
 
 # Constants
 borderSize = 48
@@ -12,19 +16,22 @@ linePackSize = 32
 maxSheetLength = 10
 cameraImageLength = 20*1024
 threshold = 15.5 #for scoreMap
-readImageRate = 1/20 #read 1 image each 20 second
+readImageRate = 1/30 #read 1 image each 20 second
+# bufferSize: > patchSize+2*boarderSize AND  n*linePackSize >=  patchSize+boarderSize
+# superPatchSize= patchSize+2*boarderSize
+n = 18
+bufferSize = n * linePackSize + borderSize  #number of rows for data buffer
+superPatchSize = patchSize + 2*borderSize
 
 # Global Variables
-buffer1Ready = 0
-buffer2Ready = 0
+procBufferEmpty = 1
 paperDetect = 0
 cameraDetect = 0
 linePerSecond = 0
 nonRealtime = 0
 resultReady = 0
-#superPatch1 : superPatchBuffer[2*patchSize - borderSize: , :] , superPatchBuffer[:patchSize+borderSize,:]
-#superPatch2 : superPatchBuffer[patchSize - borderSize: , :] , superPatchBuffer[:borderSize,:]
-superPatchBuffer = np.zeros((2*patchSize, 2*borderSize + sensorSize))
+dataBuffer = np.ones((bufferSize, sensorSize + 2*borderSize)) * 255
+processBuffer = np.ones((superPatchSize, sensorSize + 2*borderSize)) * 255
 imageMask = []
 rawImage = []
 enhancedImage = []

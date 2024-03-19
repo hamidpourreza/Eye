@@ -113,7 +113,7 @@ class LineScanCameraSimulator:
 
 
 # Example usage
-root_path = "/content/drive/MyDrive/AnomalyDetection/data/"
+root_path = globalVariables.rootPath
 output_path = globalVariables.inputPath
 batch_size = 1
 test_dataset = mvtec(root_path= root_path,is_train=False)
