@@ -217,7 +217,7 @@ class DataAcquisitionThread(threading.Thread):
         self.i +=1
         globalVariables.procBufferEmpty = 0 #set process Buffer is full
         globalVariables.patchCounter += 1
-        self.startOfBuffer = self.startOfBuffer + globalVariables.superPatchSize - globalVariables.borderSize
+        self.startOfBuffer = self.startOfBuffer + globalVariables.superPatchSize
         globalVariables.procBufferEmpty = 1 #this is temporary
 
 
