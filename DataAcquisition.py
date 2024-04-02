@@ -219,6 +219,7 @@ class DataAcquisitionThread(threading.Thread):
         globalVariables.patchCounter += 1
         self.startOfBuffer = self.startOfBuffer + globalVariables.superPatchSize
         globalVariables.procBufferEmpty = 1 #this is temporary
+        globalVariables.processBuffer.fill(255)
 
 
 
@@ -228,6 +229,9 @@ class DataAcquisitionThread(threading.Thread):
         globalVariables.rawImage.append(np.vstack(self.localRawImage))
         globalVariables.imageMask.append(np.vstack(self.localMask))
         globalVariables.cameraImage.append(np.vstack(self.localCameraImage))
+        cv2.imwrite(globalVariables.outputPath+"backsuperP%d.png"%self.i,globalVariables.imageMask[0].astype(np.uint8))
+        print("complete an image")
+        globalVariables.imageMask.clear()
         self.localRawImage.clear()
         self.localMask.clear()
         self.localCameraImage.clear()
@@ -245,9 +249,11 @@ class DataAcquisitionThread(threading.Thread):
         return list(x)       
 
     def fillTriangles(self):
-        globalVariables.processBuffer = np.where(globalVariables.processBuffer > 220, 0, globalVariables.processBuffer)
-        mask = np.where(globalVariables.processBuffer != 0, 255, 0).astype(np.uint8)
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        _, mask = cv2.threshold(globalVariables.processBuffer, 235, 255, cv2.THRESH_BINARY_INV)
+        kernel = np.ones((5,5), np.uint8)
+        # Erode the binary image
+        mask = cv2.erode(mask, kernel, iterations=1)
+        contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if len(contours)> 0:
             max_contour = max(contours, key=cv2.contourArea)
             # Find the bounding rectangle of the sheet
@@ -255,12 +261,12 @@ class DataAcquisitionThread(threading.Thread):
             
             x_min, x_max, y_min, y_max = x, x+w, y, y+h
             image1 = globalVariables.processBuffer.copy()
-            indexes = np.where(globalVariables.processBuffer[x_min:x_max,y_min:y_max] == 0)
+            indexes = np.where(mask[x_min:x_max,y_min:y_max] == 0)
             #fill left and right triangle
             for i, j in zip(indexes[0],indexes[1]):
                         i , j = i+x_min,j+y_min
-                        row = image1[i,:]
-                        col = image1[:, j]
+                        row = mask[i,:]
+                        col = mask[:, j]
                         indexesRow = np.where(row != 0)
                         indexesCol = np.where(col != 0)
                         minsC,maxesC = min(indexesRow[0]),max(indexesRow[0])
@@ -297,32 +303,40 @@ class DataAcquisitionThread(threading.Thread):
     
     def paddingLeftRightTopButtom(self):
         R, C = globalVariables.processBuffer.shape
+        _, mask = cv2.threshold(globalVariables.processBuffer, 235, 255, cv2.THRESH_BINARY_INV)
+        kernel = np.ones((5,5), np.uint8)
+
+        # Erode the binary image
+        mask = cv2.erode(mask, kernel, iterations=1)
+
         #padding left and right
         for r in range(R):
-          row = globalVariables.processBuffer[r,:]
+          row = mask[r,:]
           if np.all(row == 0):
              continue
           ind = np.where(row != 0)
           minimum,maximum = min(ind[0]),max(ind[0])
-          globalVariables.processBuffer[r,:minimum] = row[minimum]
-          globalVariables.processBuffer[r,maximum:] = row[maximum] 
+          globalVariables.processBuffer[r,:minimum] = globalVariables.processBuffer[r,minimum]
+          globalVariables.processBuffer[r,maximum:] = globalVariables.processBuffer[r,maximum] 
        
         #padding top and bottom
-        nonzero_rows = np.where(np.any(globalVariables.processBuffer != 0, axis=1))[0]
+        nonzero_rows = np.where(np.any(mask != 0, axis=1))[0]
 
         first_nonzero_row = nonzero_rows[0]
         last_nonzero_row = nonzero_rows[-1]
         for r in range(R):
-          row = globalVariables.processBuffer[r,:]
+          row = mask[r,:]
           if np.all(row == 0):
               if r < first_nonzero_row:
                   globalVariables.processBuffer[r, :] = globalVariables.processBuffer[first_nonzero_row, :]
               elif r >= last_nonzero_row:
-                  globalVariables.processBuffer[r, :] = globalVariables.processBuffer[last_nonzero_row-1, :]
+                  globalVariables.processBuffer[r, :] = globalVariables.processBuffer[last_nonzero_row, :]
+
 
     def createAndStoreMask(self,image):
-        mask = np.where(image > 220, 0, 1)
-        self.localMask.append(mask)
+        (T, thresholded) = cv2.threshold(image, 235, 255,cv2.THRESH_BINARY_INV )
+        self.localMask.append(thresholded)
+       
 
 
     def storeRawImage(self,image):
