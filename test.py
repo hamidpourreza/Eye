@@ -1,12 +1,6 @@
-import globalVariables
 from DataAcquisition import DataAcquisitionThread
 from DataProcessing import DataProcessingThread
 from ActionAndVisualization import ActionAndVisualizationThread
-from DataTest import DataTest
-import numpy as np
-
-
-
 
 # Create and start data acquisition thread
 data_acquisition_thread = DataAcquisitionThread()
