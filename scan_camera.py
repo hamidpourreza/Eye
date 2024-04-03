@@ -1,19 +1,10 @@
 import cv2
-from cv2.typing import RotatedRect
 import numpy as np
-from torch.utils.data import DataLoader
 from tqdm import tqdm
-from Dataset import MyDataset as mvtec
 import globalVariables
 import time
 import os
 
-
-
-
-import cv2
-import numpy as np
-import time
 
 class LineScanCameraSimulator:
     def __init__(self, num_pixels, height, background_gray_level, background_noise_variance, max_rotation, blur_filter_size, bias):
