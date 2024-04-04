@@ -324,8 +324,8 @@ class DataAcquisitionThread(threading.Thread):
         #padding left and right
         for r in range(R):
           row = mask[r,:]
-          if np.all(row == 0):
-             continue
+          if not np.any(row):
+            continue
           ind = np.where(row != 0)
           minimum,maximum = min(ind[0]),max(ind[0])
           globalVariables.processBuffer[r,:minimum] = globalVariables.processBuffer[r,minimum]
@@ -335,15 +335,10 @@ class DataAcquisitionThread(threading.Thread):
         _, mask = cv2.threshold(globalVariables.processBuffer, self.minBackgroundLevel, 255, cv2.THRESH_BINARY_INV)
         # Erode the binary image
         mask = cv2.erode(mask, kernel, iterations=1)
-
-        for c in range(C):
-          col = mask[:, c]
-          if np.all(col == 0):
-             continue
-          ind = np.where(col != 0)
-          minimum,maximum = min(ind[0]),max(ind[0])
-          globalVariables.processBuffer[:minimum, c] = globalVariables.processBuffer[minimum, c]
-          globalVariables.processBuffer[maximum:, c] = globalVariables.processBuffer[maximum, c] 
+        ind = np.where(mask[:, 0] != 0)
+        minimum,maximum = min(ind[0]),max(ind[0])
+        globalVariables.processBuffer[:minimum, :] = globalVariables.processBuffer[minimum, :]
+        globalVariables.processBuffer[maximum:, :] = globalVariables.processBuffer[maximum, :] 
 
 
 
