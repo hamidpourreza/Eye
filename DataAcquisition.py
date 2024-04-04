@@ -13,6 +13,7 @@ class DataAcquisitionThread(threading.Thread):
         self.bufferPointer = 0
         self.firstPatch = 1
         self.cameraImagePointer = 0
+        self.minBackgroundLevel = 235
         #where super patch started
         self.startOfBuffer = 0    
         self.localCameraImage = []
@@ -20,7 +21,7 @@ class DataAcquisitionThread(threading.Thread):
         self.localRawImage = []
         self.localImage = []
 
-        globalVariables.paperDetect = 0
+        globalVariables.sheetDetect = 0
         globalVariables.cameraDetect = 0
         globalVariables.nonRealtime = 0
         globalVariables.patchCounter = 0
@@ -38,9 +39,6 @@ class DataAcquisitionThread(threading.Thread):
         self.startOfBuffer = 0
 
         for x in data:
-            #change read data rate
-            if globalVariables.procBufferEmpty == 0:
-              time.sleep(1/globalVariables.readImageRate)
             #get linepack
             image = cv2.cvtColor(cv2.imread(x),cv2.COLOR_BGR2GRAY)
             self.storeCameraImage(image)
@@ -48,7 +46,7 @@ class DataAcquisitionThread(threading.Thread):
                   
             if self.allLinesAreEmpty(image):
                 #sheet is not started
-                if globalVariables.paperDetect != 1:
+                if globalVariables.sheetDetect != 1:
                     continue
 
                 #sheet is finished & fill buffer with background pack
@@ -73,7 +71,7 @@ class DataAcquisitionThread(threading.Thread):
                                 self.bufferPointer = globalVariables.borderSize
                                 #super patch 0 start from index 0
                                 self.startOfBuffer = 0
-                                globalVariables.paperDetect = 0
+                                globalVariables.sheetDetect = 0
                                 self.endOfSheet()
                                 continue
                             else:
@@ -101,7 +99,7 @@ class DataAcquisitionThread(threading.Thread):
                                     self.bufferPointer = globalVariables.borderSize
                                     #super patch 0 start from index 0
                                     self.startOfBuffer = 0
-                                    globalVariables.paperDetect = 0
+                                    globalVariables.sheetDetect = 0
 
                                     self.endOfSheet()
                                     continue
@@ -115,7 +113,7 @@ class DataAcquisitionThread(threading.Thread):
                   
             #sheet is seen    
             else:
-                globalVariables.paperDetect = 1
+                globalVariables.sheetDetect = 1
 
                 #check data buffer has space and put the lines in it
                 if self.bufferPointer - self.startOfBuffer >= globalVariables.superPatchSize:
@@ -140,7 +138,7 @@ class DataAcquisitionThread(threading.Thread):
                                     self.bufferPointer = globalVariables.borderSize
                                     #super patch 0 start from index 0
                                     self.startOfBuffer = 0
-                                    globalVariables.paperDetect = 0
+                                    globalVariables.sheetDetect = 0
 
                                     self.endOfSheet()
                                     continue
@@ -171,7 +169,7 @@ class DataAcquisitionThread(threading.Thread):
                                         self.bufferPointer = globalVariables.borderSize
                                         #super patch 0 start from index 0
                                         self.startOfBuffer = 0
-                                        globalVariables.paperDetect = 0
+                                        globalVariables.sheetDetect = 0
 
                                         self.endOfSheet()
                                         continue
@@ -199,6 +197,7 @@ class DataAcquisitionThread(threading.Thread):
 
 
     def dataBufferToProcessBuffer(self):
+        
         #process Buffer is empty
         #compute start and end of super patch in data buffer
         s = self.startOfBuffer % globalVariables.bufferSize
@@ -211,8 +210,12 @@ class DataAcquisitionThread(threading.Thread):
         
         #fill triangles resulting from rotation and padding around image with sheet border value
         cv2.imwrite(globalVariables.outputPath+"/rawImage%d.png"%self.i,globalVariables.processBuffer)
+        start_time = time.time()
         self.fillTriangles()
+        print("fillTriangles:",time.time() - start_time)
+        start_time = time.time()
         self.paddingLeftRightTopButtom()
+        print("padding:",time.time() - start_time)
         cv2.imwrite(globalVariables.outputPath+"superP%d.png"%self.i,globalVariables.processBuffer)
         self.i +=1
         globalVariables.procBufferEmpty = 0 #set process Buffer is full
@@ -249,29 +252,38 @@ class DataAcquisitionThread(threading.Thread):
         return list(x)       
 
     def fillTriangles(self):
-        _, mask = cv2.threshold(globalVariables.processBuffer, 235, 255, cv2.THRESH_BINARY_INV)
-        kernel = np.ones((5,5), np.uint8)
+        _, mask = cv2.threshold(globalVariables.processBuffer, self.minBackgroundLevel, 255, cv2.THRESH_BINARY_INV)
+        kernel = np.ones((11,11), np.uint8)
         # Erode the binary image
         mask = cv2.erode(mask, kernel, iterations=1)
         contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if len(contours)> 0:
-            max_contour = max(contours, key=cv2.contourArea)
-            # Find the bounding rectangle of the sheet
-            y, x, h, w = cv2.boundingRect(max_contour)
-            
-            x_min, x_max, y_min, y_max = x, x+w, y, y+h
-            image1 = globalVariables.processBuffer.copy()
-            indexes = np.where(mask[x_min:x_max,y_min:y_max] == 0)
-            #fill left and right triangle
-            for i, j in zip(indexes[0],indexes[1]):
-                        i , j = i+x_min,j+y_min
-                        row = mask[i,:]
-                        col = mask[:, j]
-                        indexesRow = np.where(row != 0)
-                        indexesCol = np.where(col != 0)
-                        minsC,maxesC = min(indexesRow[0]),max(indexesRow[0])
-                        minsR,maxesR = min(indexesCol[0]),max(indexesCol[0])
+    
+        if len(contours) > 0:
+                max_contour = max(contours, key=cv2.contourArea)
+                # Find the bounding rectangle of the sheet
+                y, x, h, w = cv2.boundingRect(max_contour)
+                
+                x_min, x_max, y_min, y_max = x, x+w, y, y+h
+                
+                # Get the indices where mask is zero within the bounding rectangle
+                indices = np.argwhere(mask[x_min:x_max, y_min:y_max] == 0)
+                
+                # Iterate over the indices to fill triangles
+                for i, j in indices:
+                        i += x_min
+                        j += y_min
                         
+                        # Get the row and column from image
+                        row = mask[i, :]
+                        col = mask[:, j]
+                        
+                        # Find non-zero indices in row and col
+                        nonzero_row_indices = np.nonzero(row)
+                        nonzero_col_indices = np.nonzero(col)
+                        
+                        # Calculate the minimum and maximum indices
+                        minsR, maxesR = nonzero_col_indices[0][0], nonzero_col_indices[0][-1]
+                        minsC, maxesC = nonzero_row_indices[0][0], nonzero_row_indices[0][-1]
                         #left border
                         if i < minsR:
                             if j < minsC:
@@ -303,8 +315,8 @@ class DataAcquisitionThread(threading.Thread):
     
     def paddingLeftRightTopButtom(self):
         R, C = globalVariables.processBuffer.shape
-        _, mask = cv2.threshold(globalVariables.processBuffer, 235, 255, cv2.THRESH_BINARY_INV)
-        kernel = np.ones((5,5), np.uint8)
+        _, mask = cv2.threshold(globalVariables.processBuffer, self.minBackgroundLevel, 255, cv2.THRESH_BINARY_INV)
+        kernel = np.ones((11,11), np.uint8)
 
         # Erode the binary image
         mask = cv2.erode(mask, kernel, iterations=1)
@@ -320,24 +332,25 @@ class DataAcquisitionThread(threading.Thread):
           globalVariables.processBuffer[r,maximum:] = globalVariables.processBuffer[r,maximum] 
        
         #padding top and bottom
-        nonzero_rows = np.where(np.any(mask != 0, axis=1))[0]
+        _, mask = cv2.threshold(globalVariables.processBuffer, self.minBackgroundLevel, 255, cv2.THRESH_BINARY_INV)
+        # Erode the binary image
+        mask = cv2.erode(mask, kernel, iterations=1)
 
-        first_nonzero_row = nonzero_rows[0]
-        last_nonzero_row = nonzero_rows[-1]
-        for r in range(R):
-          row = mask[r,:]
-          if np.all(row == 0):
-              if r < first_nonzero_row:
-                  globalVariables.processBuffer[r, :] = globalVariables.processBuffer[first_nonzero_row, :]
-              elif r >= last_nonzero_row:
-                  globalVariables.processBuffer[r, :] = globalVariables.processBuffer[last_nonzero_row, :]
+        for c in range(C):
+          col = mask[:, c]
+          if np.all(col == 0):
+             continue
+          ind = np.where(col != 0)
+          minimum,maximum = min(ind[0]),max(ind[0])
+          globalVariables.processBuffer[:minimum, c] = globalVariables.processBuffer[minimum, c]
+          globalVariables.processBuffer[maximum:, c] = globalVariables.processBuffer[maximum, c] 
+
 
 
     def createAndStoreMask(self,image):
-        (T, thresholded) = cv2.threshold(image, 235, 255,cv2.THRESH_BINARY_INV )
+        (T, thresholded) = cv2.threshold(image, self.minBackgroundLevel, 255,cv2.THRESH_BINARY_INV )
         self.localMask.append(thresholded)
        
-
 
     def storeRawImage(self,image):
         self.localRawImage.append(image)

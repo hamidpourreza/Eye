@@ -16,6 +16,8 @@ linePackSize = 32
 maxSheetLength = 10
 cameraImageLength = 20*1024
 threshold = 15.5 #for scoreMap
+backgroundGrayLevel = 255
+
 readImageRate = 1/30 #read 1 image each 20 second
 # bufferSize: > patchSize+2*boarderSize AND  n*linePackSize >=  patchSize+boarderSize
 # superPatchSize= patchSize+2*boarderSize
@@ -25,7 +27,7 @@ superPatchSize = patchSize + 2*borderSize
 
 # Global Variables
 procBufferEmpty = 1
-paperDetect = 0
+sheetDetect = 0
 cameraDetect = 0
 linePerSecond = 0
 nonRealtime = 0
