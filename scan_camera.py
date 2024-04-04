@@ -7,6 +7,18 @@ import os
 
 
 class LineScanCameraSimulator:
+    """
+    Simulates a line scan camera.
+
+    Args:
+        num_pixels: The number of pixels in the camera.
+        height: The number of lines that the camera sends at a time.
+        background_gray_level: The grayscale level of the background.
+        background_noise_variance: The variance of the Gaussian noise of the background.
+        max_rotation: The maximum unwanted rotation of the image.
+        blur_filter_size: The size of the blur filter to simulate camera defocus.
+        bias: Bias to ensure the distance between two sheets
+    """
     def __init__(self, num_pixels, height, background_gray_level, background_noise_variance, max_rotation, blur_filter_size, bias):
         self.num_pixels = num_pixels
         self.height = height
@@ -17,9 +29,9 @@ class LineScanCameraSimulator:
         self.bias = bias
 
     def simulate(self, image):
-        start_time = time.time()
+     
+        #rotate image
         rotated_image, mask_out = self.rotate_img(image)
-        print("Rotation time:", time.time() - start_time)
 
         if rotated_image.shape[1] > self.num_pixels:
             print("Image width is greater than camera width")
@@ -28,6 +40,7 @@ class LineScanCameraSimulator:
         before_blks = np.round(50 * np.random.rand()) + self.bias
         after_blks = np.round(50 * np.random.rand()) + self.bias
 
+        #add background to image
         rows, cols = rotated_image.shape
         img_rows = self.height * np.ceil((self.height * (before_blks + after_blks) + rows) / self.height)
         img_columns = self.num_pixels
@@ -41,11 +54,10 @@ class LineScanCameraSimulator:
         for r in range(rows):
             image[int(self.height * before_blks) + r, c_trans:c_trans + cols] = np.where(mask_out[r], rotated_image[r], image[int(self.height * before_blks) + r, c_trans:c_trans + cols])
 
+        #defocuse image
         if self.blur_filter_size > 1:
             image = cv2.GaussianBlur(image.astype(np.uint8), (self.blur_filter_size, self.blur_filter_size), 0)
-
-        print("End", time.time() - start_time)
-        return image
+        return image.astype(np.uint8)
 
     def rotate_img(self, img):
         rotation = np.random.uniform(-self.max_rotation, self.max_rotation)
@@ -90,9 +102,9 @@ root_path = globalVariables.rootPath
 output_path = globalVariables.inputPath
 
 simulator = LineScanCameraSimulator(
-  num_pixels=6*1024,
-  height=32,
-  background_gray_level=255,
+  num_pixels=globalVariables.sensorSize,
+  height=globalVariables.linePackSize,
+  background_gray_level=globalVariables.backgroundGrayLevel,
   background_noise_variance=10,
   max_rotation=3,
   blur_filter_size=11,
