@@ -172,7 +172,6 @@ class DataAcquisitionThread(threading.Thread):
         return list(x)       
 
     def fillTriangles(self):
-        start = time.time()
         _, mask = cv2.threshold(globalVariables.processBuffer, self.minBackgroundLevel, globalVariables.backgroundGrayLevel, cv2.THRESH_BINARY_INV)
         kernel = np.ones((11,11), np.uint8)
         # Erode the binary image
@@ -191,39 +190,40 @@ class DataAcquisitionThread(threading.Thread):
         nonzero_cols_indices = [np.nonzero(mask[:, j])[0] for j in range(y_min, y_max)]
 
         for i in range(x_min, x_max):
-            for j in range(y_min, y_max):
-                if mask[i, j] == 0:
-                    minsR, maxesR = nonzero_cols_indices[j - y_min][0], nonzero_cols_indices[j - y_min][-1]
-                    minsC, maxesC = nonzero_rows_indices[i - x_min][0], nonzero_rows_indices[i - x_min][-1]
+            if np.any(mask[i,:] == 0):
+                for j in range(y_min, y_max):
+                    if mask[i, j] == 0:
+                        minsR, maxesR = nonzero_cols_indices[j - y_min][0], nonzero_cols_indices[j - y_min][-1]
+                        minsC, maxesC = nonzero_rows_indices[i - x_min][0], nonzero_rows_indices[i - x_min][-1]
 
-                    
-                    #left border
-                    if i < minsR:
-                        if j < minsC:
-                            if (minsR - i) < (minsC - j):
-                                    globalVariables.processBuffer[i, j] = globalVariables.processBuffer[minsR, j]
-                            else:
-                                    globalVariables.processBuffer[i, j] = globalVariables.processBuffer[i, minsC]
+                        
+                        #left border
+                        if i < minsR:
+                            if j < minsC:
+                                if (minsR - i) < (minsC - j):
+                                        globalVariables.processBuffer[i, j] = globalVariables.processBuffer[minsR, j]
+                                else:
+                                        globalVariables.processBuffer[i, j] = globalVariables.processBuffer[i, minsC]
 
-                        if j > maxesC:
-                            if (minsR - i) < (j - maxesC):
-                                    globalVariables.processBuffer[i, j] = globalVariables.processBuffer[minsR, j]
-                            else:
-                                    globalVariables.processBuffer[i, j] = globalVariables.processBuffer[i, maxesC]
-                    #right border
-                    if i > maxesR:
-                        if j < minsC:
-                            if (i - maxesR) < (minsC - j):
-                                    globalVariables.processBuffer[i, j] = globalVariables.processBuffer[maxesR, j]
-                            else:
-                                    globalVariables.processBuffer[i, j] = globalVariables.processBuffer[i, minsC]
-                                        
-                        if j > maxesC:
-                            if (i - maxesR) <= (j - maxesC):
-                                    globalVariables.processBuffer[i, j] = globalVariables.processBuffer[maxesR, j]
-                            else:
-                                    globalVariables.processBuffer[i, j] = globalVariables.processBuffer[i, maxesC]
-            
+                            if j > maxesC:
+                                if (minsR - i) < (j - maxesC):
+                                        globalVariables.processBuffer[i, j] = globalVariables.processBuffer[minsR, j]
+                                else:
+                                        globalVariables.processBuffer[i, j] = globalVariables.processBuffer[i, maxesC]
+                        #right border
+                        if i > maxesR:
+                            if j < minsC:
+                                if (i - maxesR) < (minsC - j):
+                                        globalVariables.processBuffer[i, j] = globalVariables.processBuffer[maxesR, j]
+                                else:
+                                        globalVariables.processBuffer[i, j] = globalVariables.processBuffer[i, minsC]
+                                            
+                            if j > maxesC:
+                                if (i - maxesR) <= (j - maxesC):
+                                        globalVariables.processBuffer[i, j] = globalVariables.processBuffer[maxesR, j]
+                                else:
+                                        globalVariables.processBuffer[i, j] = globalVariables.processBuffer[i, maxesC]
+                
     
     def paddingLeftRightTopButtom(self):
         R, C = globalVariables.processBuffer.shape
