@@ -33,150 +33,58 @@ class DataAcquisitionThread(threading.Thread):
     def run(self):
         data = self.load_dataset_folder()
         #fill top border of first super patch
-        globalVariables.dataBuffer[:globalVariables.borderSize,:] = 255
+        globalVariables.dataBuffer[:globalVariables.borderSize,:] = globalVariables.backgroundGrayLevel
         self.bufferPointer = globalVariables.borderSize
         #super patch 0 start from index 0
         self.startOfBuffer = 0
 
         for x in data:
             #get linepack
-            image = cv2.cvtColor(cv2.imread(x),cv2.COLOR_BGR2GRAY)
+            image = cv2.imread(x,cv2.IMREAD_GRAYSCALE)
             self.storeCameraImage(image)
             globalVariables.lineReceived += globalVariables.linePackSize
                   
             if self.allLinesAreEmpty(image):
-                #sheet is not started
                 if globalVariables.sheetDetect != 1:
                     continue
-
-                #sheet is finished & fill buffer with background pack
                 else:
-                    #data buffer is ready for processing
                     if self.bufferPointer - self.startOfBuffer >= globalVariables.superPatchSize:
-                        #process buffer is full
                         if globalVariables.procBufferEmpty == 0:
                             print("non real time")
                             globalVariables.nonRealtime = 1
                             continue
-                        #process buffer is empty
                         else:
-                            self.dataBufferToProcessBuffer()
-
-                            if globalVariables.patchCounter >= globalVariables.maxSheetLength:
-                                self.endOfSheet()
-                                continue
-                            elif np.all(image[-1, :] > 220):
-                                #fill top border of first super patch
-                                globalVariables.dataBuffer[:globalVariables.borderSize,:] = 255
-                                self.bufferPointer = globalVariables.borderSize
-                                #super patch 0 start from index 0
-                                self.startOfBuffer = 0
-                                globalVariables.sheetDetect = 0
-                                self.endOfSheet()
-                                continue
-                            else:
-                                continue
-                    #data buffer is full
+                            self.handleProcessingBuffer(image)
                     else:
                         self.SavePackLine(image)
-                        #data buffer is ready for processing
                         if self.bufferPointer - self.startOfBuffer >= globalVariables.superPatchSize:
-                            #process buffer is full
                             if globalVariables.procBufferEmpty == 0:
                                 print("non real time")
                                 globalVariables.nonRealtime = 1
                                 continue
-                            #process buffer is empty
                             else:
-                                self.dataBufferToProcessBuffer()
-
-                                if globalVariables.patchCounter >= globalVariables.maxSheetLength:
-                                    self.endOfSheet()
-                                    continue
-                                elif np.all(image[-1, :] > 220):
-                                    #fill top border of first super patch
-                                    globalVariables.dataBuffer[:globalVariables.borderSize,:] = 255
-                                    self.bufferPointer = globalVariables.borderSize
-                                    #super patch 0 start from index 0
-                                    self.startOfBuffer = 0
-                                    globalVariables.sheetDetect = 0
-
-                                    self.endOfSheet()
-                                    continue
-                                else:
-                                    continue
+                                self.handleProcessingBuffer(image)
                             
                         else:
                             continue
-
-
-                  
-            #sheet is seen    
             else:
                 globalVariables.sheetDetect = 1
-
-                #check data buffer has space and put the lines in it
                 if self.bufferPointer - self.startOfBuffer >= globalVariables.superPatchSize:
-                        #data buffer is ready
+                    if globalVariables.procBufferEmpty == 0:
+                        print("non real time")
+                        globalVariables.nonRealtime = 1
+                        continue
+                    else:
+                        self.handleProcessingBuffer(image)
+                else:
+                    self.SavePackLine(image)
+                    if self.bufferPointer - self.startOfBuffer >= globalVariables.superPatchSize:
                         if globalVariables.procBufferEmpty == 0:
-                            #process buffer is full
                             print("non real time")
                             globalVariables.nonRealtime = 1
                             continue
-
                         else:
-                            #put super patch in process buffer
-                            
-                            self.dataBufferToProcessBuffer()
-
-                            if globalVariables.patchCounter >= globalVariables.maxSheetLength:
-                                    self.endOfSheet()
-                                    continue
-                            elif np.all(image[-1, :] > 220):
-                                    #fill top border of first super patch
-                                    globalVariables.dataBuffer[:globalVariables.borderSize,:] = 255
-                                    self.bufferPointer = globalVariables.borderSize
-                                    #super patch 0 start from index 0
-                                    self.startOfBuffer = 0
-                                    globalVariables.sheetDetect = 0
-
-                                    self.endOfSheet()
-                                    continue
-                            else:
-                                    continue
-                                    
-                #data buffer has space for pack
-                else:
-                    self.SavePackLine(image)
-                    #check again data buffer is ready
-                    if self.bufferPointer - self.startOfBuffer >= globalVariables.superPatchSize:
-
-                        if globalVariables.procBufferEmpty == 0:
-                                #process buffer is full
-                                print("non real time")
-                                globalVariables.nonRealtime = 1
-                                continue
-                        else:
-                                #put super patch in process buffer
-                            
-                                self.dataBufferToProcessBuffer()
-
-                                if globalVariables.patchCounter >= globalVariables.maxSheetLength:
-                                        self.endOfSheet()
-                                elif np.all(image[-1, :] > 220):
-                                        #fill top border of first super patch
-                                        globalVariables.dataBuffer[:globalVariables.borderSize,:] = 255
-                                        self.bufferPointer = globalVariables.borderSize
-                                        #super patch 0 start from index 0
-                                        self.startOfBuffer = 0
-                                        globalVariables.sheetDetect = 0
-
-                                        self.endOfSheet()
-                                        continue
-                                else:
-                                        continue
-                    else:
-                        continue
+                            self.handleProcessingBuffer(image)
  
                 
 
@@ -222,7 +130,19 @@ class DataAcquisitionThread(threading.Thread):
         globalVariables.patchCounter += 1
         self.startOfBuffer = self.startOfBuffer + globalVariables.superPatchSize
         globalVariables.procBufferEmpty = 1 #this is temporary
-        globalVariables.processBuffer.fill(255)
+        globalVariables.processBuffer.fill(globalVariables.backgroundGrayLevel)
+
+
+    def handleProcessingBuffer(self, image):
+        self.dataBufferToProcessBuffer()
+        if globalVariables.patchCounter >= globalVariables.maxSheetLength:
+            self.endOfSheet()
+        elif np.all(image[-1, :] > self.minBackgroundLevel):
+            globalVariables.dataBuffer[:globalVariables.borderSize, :] = globalVariables.backgroundGrayLevel
+            self.bufferPointer = globalVariables.borderSize
+            self.startOfBuffer = 0
+            globalVariables.sheetDetect = 0
+            self.endOfSheet()
 
 
 
@@ -252,98 +172,91 @@ class DataAcquisitionThread(threading.Thread):
         return list(x)       
 
     def fillTriangles(self):
-        _, mask = cv2.threshold(globalVariables.processBuffer, self.minBackgroundLevel, 255, cv2.THRESH_BINARY_INV)
+        start = time.time()
+        _, mask = cv2.threshold(globalVariables.processBuffer, self.minBackgroundLevel, globalVariables.backgroundGrayLevel, cv2.THRESH_BINARY_INV)
         kernel = np.ones((11,11), np.uint8)
         # Erode the binary image
         mask = cv2.erode(mask, kernel, iterations=1)
         contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
-        if len(contours) > 0:
-                max_contour = max(contours, key=cv2.contourArea)
-                # Find the bounding rectangle of the sheet
-                y, x, h, w = cv2.boundingRect(max_contour)
-                
-                x_min, x_max, y_min, y_max = x, x+w, y, y+h
-                
-                # Get the indices where mask is zero within the bounding rectangle
-                indices = np.argwhere(mask[x_min:x_max, y_min:y_max] == 0)
-                
-                # Iterate over the indices to fill triangles
-                for i, j in indices:
-                        i += x_min
-                        j += y_min
-                        
-                        # Get the row and column from image
-                        row = mask[i, :]
-                        col = mask[:, j]
-                        
-                        # Find non-zero indices in row and col
-                        nonzero_row_indices = np.nonzero(row)
-                        nonzero_col_indices = np.nonzero(col)
-                        
-                        # Calculate the minimum and maximum indices
-                        minsR, maxesR = nonzero_col_indices[0][0], nonzero_col_indices[0][-1]
-                        minsC, maxesC = nonzero_row_indices[0][0], nonzero_row_indices[0][-1]
-                        #left border
-                        if i < minsR:
-                            if j < minsC:
-                                if (minsR - i) < (minsC - j):
+        if len(contours) <= 0:
+                return
+        max_contour = max(contours, key=cv2.contourArea)
+        # Find the bounding rectangle of the sheet
+        y, x, h, w = cv2.boundingRect(max_contour)
+        x_min, x_max, y_min, y_max = x, x+w, y, y+h
+                 
+        # Find non-zero indices in rows and columns outside the loop
+        nonzero_rows_indices = [np.nonzero(mask[i, :])[0] for i in range(x_min, x_max)]
+        nonzero_cols_indices = [np.nonzero(mask[:, j])[0] for j in range(y_min, y_max)]
+
+        for i in range(x_min, x_max):
+            for j in range(y_min, y_max):
+                if mask[i, j] == 0:
+                    minsR, maxesR = nonzero_cols_indices[j - y_min][0], nonzero_cols_indices[j - y_min][-1]
+                    minsC, maxesC = nonzero_rows_indices[i - x_min][0], nonzero_rows_indices[i - x_min][-1]
+
+                    
+                    #left border
+                    if i < minsR:
+                        if j < minsC:
+                            if (minsR - i) < (minsC - j):
                                     globalVariables.processBuffer[i, j] = globalVariables.processBuffer[minsR, j]
-                                else:
+                            else:
                                     globalVariables.processBuffer[i, j] = globalVariables.processBuffer[i, minsC]
 
-                            if j > maxesC:
-                                if (minsR - i) < (j - maxesC):
+                        if j > maxesC:
+                            if (minsR - i) < (j - maxesC):
                                     globalVariables.processBuffer[i, j] = globalVariables.processBuffer[minsR, j]
-                                else:
+                            else:
                                     globalVariables.processBuffer[i, j] = globalVariables.processBuffer[i, maxesC]
-                        #right border
-                        if i > maxesR:
-                            if j < minsC:
-                                if (i - maxesR) < (minsC - j):
+                    #right border
+                    if i > maxesR:
+                        if j < minsC:
+                            if (i - maxesR) < (minsC - j):
                                     globalVariables.processBuffer[i, j] = globalVariables.processBuffer[maxesR, j]
-                                else:
+                            else:
                                     globalVariables.processBuffer[i, j] = globalVariables.processBuffer[i, minsC]
-                                
-                            if j > maxesC:
-                                if (i - maxesR) <= (j - maxesC):
+                                        
+                        if j > maxesC:
+                            if (i - maxesR) <= (j - maxesC):
                                     globalVariables.processBuffer[i, j] = globalVariables.processBuffer[maxesR, j]
-                                else:
+                            else:
                                     globalVariables.processBuffer[i, j] = globalVariables.processBuffer[i, maxesC]
-    
-        
+            
     
     def paddingLeftRightTopButtom(self):
         R, C = globalVariables.processBuffer.shape
-        _, mask = cv2.threshold(globalVariables.processBuffer, self.minBackgroundLevel, 255, cv2.THRESH_BINARY_INV)
+        _, mask = cv2.threshold(globalVariables.processBuffer, self.minBackgroundLevel, globalVariables.backgroundGrayLevel, cv2.THRESH_BINARY_INV)
         kernel = np.ones((11,11), np.uint8)
-
         # Erode the binary image
         mask = cv2.erode(mask, kernel, iterations=1)
 
         #padding left and right
+        # Find the minimum and maximum non-zero indices along each row
+        min_indices = np.argmax(mask, axis=1)
+        max_indices = C - np.argmax(np.flip(mask, axis=1), axis=1) - 1
+        # Update processBuffer for padding left and right
         for r in range(R):
-          row = mask[r,:]
-          if not np.any(row):
-            continue
-          ind = np.where(row != 0)
-          minimum,maximum = min(ind[0]),max(ind[0])
-          globalVariables.processBuffer[r,:minimum] = globalVariables.processBuffer[r,minimum]
-          globalVariables.processBuffer[r,maximum:] = globalVariables.processBuffer[r,maximum] 
+            min_val = globalVariables.processBuffer[r, min_indices[r]]
+            max_val = globalVariables.processBuffer[r, max_indices[r]]
+            globalVariables.processBuffer[r, :min_indices[r]] = min_val
+            globalVariables.processBuffer[r, max_indices[r]+1:] = max_val
        
         #padding top and bottom
-        _, mask = cv2.threshold(globalVariables.processBuffer, self.minBackgroundLevel, 255, cv2.THRESH_BINARY_INV)
+        _, mask = cv2.threshold(globalVariables.processBuffer, self.minBackgroundLevel, globalVariables.backgroundGrayLevel, cv2.THRESH_BINARY_INV)
         # Erode the binary image
         mask = cv2.erode(mask, kernel, iterations=1)
         ind = np.where(mask[:, 0] != 0)
-        minimum,maximum = min(ind[0]),max(ind[0])
-        globalVariables.processBuffer[:minimum, :] = globalVariables.processBuffer[minimum, :]
-        globalVariables.processBuffer[maximum:, :] = globalVariables.processBuffer[maximum, :] 
+        if len(ind[0]) > 0:
+            minimum,maximum = min(ind[0]),max(ind[0])
+            globalVariables.processBuffer[:minimum, :] = globalVariables.processBuffer[minimum, :]
+            globalVariables.processBuffer[maximum:, :] = globalVariables.processBuffer[maximum, :] 
 
 
 
     def createAndStoreMask(self,image):
-        (T, thresholded) = cv2.threshold(image, self.minBackgroundLevel, 255,cv2.THRESH_BINARY_INV )
+        (T, thresholded) = cv2.threshold(image, self.minBackgroundLevel, globalVariables.backgroundGrayLevel,cv2.THRESH_BINARY_INV )
         self.localMask.append(thresholded)
        
 
