@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 import globalVariables
-import time
 import os
 
 
@@ -29,6 +28,9 @@ class LineScanCameraSimulator:
         self.bias = bias
 
     def simulate(self, image):
+        #defocuse image
+        if self.blur_filter_size > 1:
+            image = cv2.GaussianBlur(image.astype(np.uint8), (self.blur_filter_size, self.blur_filter_size), 0)
      
         #rotate image
         rotated_image, mask_out = self.rotate_img(image)
@@ -54,9 +56,7 @@ class LineScanCameraSimulator:
         for r in range(rows):
             image[int(self.height * before_blks) + r, c_trans:c_trans + cols] = np.where(mask_out[r], rotated_image[r], image[int(self.height * before_blks) + r, c_trans:c_trans + cols])
 
-        #defocuse image
-        if self.blur_filter_size > 1:
-            image = cv2.GaussianBlur(image.astype(np.uint8), (self.blur_filter_size, self.blur_filter_size), 0)
+        
         return image.astype(np.uint8)
 
     def rotate_img(self, img):
@@ -118,7 +118,6 @@ for x in tqdm(data, 'camera'):
   images.append(simulated_image)
 
 images = np.vstack(images)
-print(images.shape)
 for i in range(0,images.shape[0],32):
   cv2.imwrite(output_path +"/%i.png"%(i//32) ,images[i:i+32,:])
 
