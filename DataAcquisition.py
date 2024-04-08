@@ -31,13 +31,13 @@ class DataAcquisitionThread(threading.Thread):
         self.i = 0
 
     def run(self):
-        data = self.load_dataset_folder()
+        data = self.loadDatasetFolder()
         #fill top border of first super patch
         globalVariables.dataBuffer[:globalVariables.borderSize,:] = globalVariables.backgroundGrayLevel
         self.bufferPointer = globalVariables.borderSize
         #super patch 0 start from index 0
         self.startOfBuffer = 0
-
+        
         for x in data:
             #get linepack
             image = cv2.imread(x,cv2.IMREAD_GRAYSCALE)
@@ -85,8 +85,6 @@ class DataAcquisitionThread(threading.Thread):
                             continue
                         else:
                             self.handleProcessingBuffer(image)
- 
-                
 
 
     # Functions 
@@ -95,7 +93,7 @@ class DataAcquisitionThread(threading.Thread):
         #store raw image and mask
         self.storeRawImage(image)
         self.createAndStoreMask(image)
-        #pour packLine in data buffer
+        #save packLine in data buffer
         globalVariables.dataBuffer[self.bufferPointer% globalVariables.bufferSize:(self.bufferPointer% globalVariables.bufferSize)+globalVariables.linePackSize//2,
                                     globalVariables.borderSize:globalVariables.sensorSize+globalVariables.borderSize] = image[:globalVariables.linePackSize//2, :]
         self.bufferPointer = (self.bufferPointer + globalVariables.linePackSize//2)
@@ -110,6 +108,7 @@ class DataAcquisitionThread(threading.Thread):
         #compute start and end of super patch in data buffer
         s = self.startOfBuffer % globalVariables.bufferSize
         end = globalVariables.superPatchSize - (globalVariables.bufferSize - s)
+
         if s == 0:
             globalVariables.processBuffer = globalVariables.dataBuffer[s:globalVariables.superPatchSize, :]
         else:
@@ -128,9 +127,9 @@ class DataAcquisitionThread(threading.Thread):
         self.i +=1
         globalVariables.procBufferEmpty = 0 #set process Buffer is full
         globalVariables.patchCounter += 1
-        self.startOfBuffer = self.startOfBuffer + globalVariables.superPatchSize
-        globalVariables.procBufferEmpty = 1 #this is temporary
-        globalVariables.processBuffer.fill(globalVariables.backgroundGrayLevel)
+        self.startOfBuffer = self.startOfBuffer + globalVariables.patchSize
+        # globalVariables.procBufferEmpty = 1 #this is temporary
+        
 
 
     def handleProcessingBuffer(self, image):
@@ -154,13 +153,12 @@ class DataAcquisitionThread(threading.Thread):
         globalVariables.cameraImage.append(np.vstack(self.localCameraImage))
         cv2.imwrite(globalVariables.outputPath+"backsuperP%d.png"%self.i,globalVariables.imageMask[0].astype(np.uint8))
         print("complete an image")
-        globalVariables.imageMask.clear()
         self.localRawImage.clear()
         self.localMask.clear()
         self.localCameraImage.clear()
         globalVariables.endOfSheet = 1   
 
-    def load_dataset_folder(self):
+    def loadDatasetFolder(self):
         x = []
         image_dir = globalVariables.inputPath
         files = os.listdir(image_dir)
@@ -256,7 +254,7 @@ class DataAcquisitionThread(threading.Thread):
 
 
     def createAndStoreMask(self,image):
-        (T, thresholded) = cv2.threshold(image, self.minBackgroundLevel, globalVariables.backgroundGrayLevel,cv2.THRESH_BINARY_INV )
+        _, thresholded = cv2.threshold(image, self.minBackgroundLevel, globalVariables.backgroundGrayLevel,cv2.THRESH_BINARY_INV )
         self.localMask.append(thresholded)
        
 
@@ -274,11 +272,11 @@ class DataAcquisitionThread(threading.Thread):
             self.localCameraImage.clear()
 
     def allLinesAreEmpty(self,image):
-        image = np.where(image > 220, 0, image)
-        if  np.all(image == 0):
-            return True
-        else:
+        _, image = cv2.threshold(image, self.minBackgroundLevel, globalVariables.backgroundGrayLevel,cv2.THRESH_BINARY_INV )
+        if  np.any(image != 0):
             return False
+        else:
+            return True
         
   
         
