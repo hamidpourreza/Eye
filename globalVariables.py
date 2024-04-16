@@ -7,6 +7,8 @@ outputPath = "./output/"        #path of output
 rootPath = "./data/"        #path of main images(befor simulated)
 if not os.path.exists(outputPath):
     os.makedirs(outputPath)
+if not os.path.exists(inputPath):
+    os.makedirs(inputPath)
 
 # Constants
 borderSize = 48
@@ -15,10 +17,11 @@ sensorSize = 6144
 linePackSize = 32
 maxSheetLength = 10
 cameraImageLength = 20*1024
-threshold = 15.5 #for scoreMap
+threshold = 13 #for scoreMap
 backgroundGrayLevel = 255
 
-readImageRate = 1/30 #read 1 image each 20 second
+
+readImageRate = 1/50 #read 1 image each 20 second
 # bufferSize: > patchSize+2*boarderSize AND  n*linePackSize >=  patchSize+boarderSize
 # superPatchSize= patchSize+2*boarderSize
 n = 18
@@ -42,3 +45,11 @@ scoreMap = []
 patchCounter = 0
 endOfSheet = 0
 lineReceived = 0
+#For Calculate distance from mean in last patch and superPatch
+usePreviousMean = False
+previousMean = None
+leftColumn = 0
+rightColumn = 6240
+bottomRow = superPatchSize
+limitationUsePreviousMean = 256
+correspondPatch = False

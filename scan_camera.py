@@ -3,6 +3,7 @@ import numpy as np
 from tqdm import tqdm
 import globalVariables
 import os
+import random
 
 
 class LineScanCameraSimulator:
@@ -31,13 +32,14 @@ class LineScanCameraSimulator:
         #defocuse image
         if self.blur_filter_size > 1:
             image = cv2.GaussianBlur(image.astype(np.uint8), (self.blur_filter_size, self.blur_filter_size), 0)
-     
+        
         #rotate image
         rotated_image, mask_out = self.rotate_img(image)
 
         if rotated_image.shape[1] > self.num_pixels:
             print("Image width is greater than camera width")
-            image = cv2.resize(rotated_image, (self.num_pixels, rotated_image.shape[0]))
+            rotated_image = cv2.resize(rotated_image, (self.num_pixels, rotated_image.shape[1]))
+            mask_out = cv2.resize(mask_out, (self.num_pixels, rotated_image.shape[1]))
 
         before_blks = np.round(50 * np.random.rand()) + self.bias
         after_blks = np.round(50 * np.random.rand()) + self.bias
@@ -63,7 +65,7 @@ class LineScanCameraSimulator:
         rotation = np.random.uniform(-self.max_rotation, self.max_rotation)
         rows, cols = img.shape
         center = (cols / 2, rows / 2)
-        angle = -rotation  # Rotation angle (counter-clockwise)
+        angle = rotation  # Rotation angle (counter-clockwise)
 
         # Get rotation matrix
         rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1)
@@ -89,7 +91,6 @@ class LineScanCameraSimulator:
         x = []
         image_dir = globalVariables.rootPath
         files = os.listdir(image_dir)
-        # files.sort(key=lambda x: int(x.split('.')[0]))
         for image_type in files:
             # load images
             image_type_dir = os.path.join(image_dir, image_type)
@@ -106,14 +107,18 @@ simulator = LineScanCameraSimulator(
   height=globalVariables.linePackSize,
   background_gray_level=globalVariables.backgroundGrayLevel,
   background_noise_variance=10,
-  max_rotation=3,
+  max_rotation=10,
   blur_filter_size=11,
   bias = 10
 )
 data = simulator.load_dataset_folder()
 images = []
+
 for x in tqdm(data, 'camera'):
   image = cv2.cvtColor(cv2.imread(x),cv2.COLOR_BGR2GRAY)
+  imgshape =(random.randint(4000,6100), random.randint(1024,3072))
+  image = cv2.resize(image, imgshape)
+  cv2.imwrite("./data2"+x, image)
   simulated_image = simulator.simulate(image)
   images.append(simulated_image)
 
