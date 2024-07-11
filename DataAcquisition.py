@@ -5,7 +5,6 @@ import cv2
 import numpy as np
 import globalVariables
 
-
 # Data Acquisition Thread
 class DataAcquisitionThread(threading.Thread):
     def __init__(self):
