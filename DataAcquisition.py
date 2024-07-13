@@ -4,7 +4,6 @@ import os
 import cv2
 import numpy as np
 import globalVariables
-from Camera import Camera
 from pypylon import pylon
 import scipy
 
